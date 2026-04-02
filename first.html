@@ -269,7 +269,7 @@
                         <!-- Romaji Content -->
                         <span id="free-romaji" class="text-8xl font-black drop-shadow-xl select-none">a</span>
                         
-                        <!-- Pronunciation Button (Moved Below Romaji) -->
+                        <!-- Pronunciation Button -->
                         <button onclick="event.stopPropagation(); playSound()"
                             class="mt-10 p-5 bg-white/20 rounded-full hover:bg-white/30 active:scale-90 transition-all shadow-lg border border-white/30">
                             <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -346,7 +346,7 @@
                         <span id="anki-romaji"
                             class="text-8xl font-black gradient-text select-none drop-shadow-sm">a</span>
                         
-                        <!-- Pronunciation Button (Positioned Below) -->
+                        <!-- Pronunciation Button -->
                         <button onclick="playSound()"
                             class="mt-10 p-5 glass rounded-full text-indigo-600 hover:bg-white active:scale-90 transition-all bg-white/50 border border-indigo-100 shadow-md">
                             <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -674,6 +674,17 @@
 
         // ==================== KEYBOARD & TOUCH ====================
         document.addEventListener('keydown', (e) => {
+            const isHomeHidden = document.getElementById('view-home').classList.contains('hidden');
+            const isSelectionHidden = document.getElementById('view-selection').classList.contains('hidden');
+            
+            if (!isHomeHidden || !isSelectionHidden) return;
+
+            // Audio Shortcut: ArrowUp (Works regardless of side)
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                playSound();
+            }
+
             if (currentAppMode === 'free' && !document.getElementById('view-free-learn').classList.contains('hidden')) {
                 if (e.key === 'ArrowRight') freeNext();
                 if (e.key === 'ArrowLeft') freePrev();
