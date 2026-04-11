@@ -435,28 +435,36 @@
 
         // ==================== AUDIO LOGIC ====================
         let speechSpeed = 1.0;
-        const speeds = [1.0, 0.7, 0.4]; // 正常, 慢速, 極慢速
+        const speeds = [1.0, 0.75, 0.5]; // 調整為更能被 iPad 識別的語速範圍：正常, 慢速, 極慢速
         let speedIndex = 0;
         let audioUnlocked = false;
+        let speechTimeout = null;
 
         function toggleSpeed() {
             speedIndex = (speedIndex + 1) % speeds.length;
             speechSpeed = speeds[speedIndex];
-            const labels = ['1.0x', '0.7x', '0.4x'];
+            const labels = ['1.0x', '0.75x', '0.5x'];
             document.getElementById('free-speed-btn').textContent = labels[speedIndex];
             document.getElementById('anki-speed-btn').textContent = labels[speedIndex];
+            
+            // 視覺回饋
+            const btnId = currentAppMode === 'free' ? 'free-speed-btn' : 'anki-speed-btn';
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                btn.classList.add('bg-indigo-50');
+                setTimeout(() => btn.classList.remove('bg-indigo-50'), 200);
+            }
+            
             playSound(); // 切換時自動重播一次
         }
 
-        // iPad/iOS 預熱音創：需要使用者首次點擊解鎖
+        // iPad/iOS 預熱：需要使用者首次點擊解鎖
         function unlockAudio() {
             if (audioUnlocked) return;
-            // 系統語音預熱
             window.speechSynthesis.cancel();
             const ut = new SpeechSynthesisUtterance('');
             window.speechSynthesis.speak(ut);
             audioUnlocked = true;
-            console.log("Audio unlocked for iPad");
         }
 
         function playSound() {
@@ -465,22 +473,26 @@
             
             const textToSpeak = currentCardItem.en;
             
-            // 使用系統 SpeechSynthesis 以支援 iPad 的離線穩定度與語速控制
+            // 關鍵修復：iPadOS 需要先取消並延遲一下，新的語速才會生效
+            if (speechTimeout) clearTimeout(speechTimeout);
             window.speechSynthesis.cancel();
             
-            const ut = new SpeechSynthesisUtterance(textToSpeak);
-            ut.lang = 'en-US';
-            ut.rate = speechSpeed;
-            
-            // 嘗試獲取更好的語音包
-            const voices = window.speechSynthesis.getVoices();
-            if (voices.length > 0) {
-                const enVoice = voices.find(v => v.lang.includes('en-US')) || 
-                                voices.find(v => v.lang.includes('en'));
-                if (enVoice) ut.voice = enVoice;
-            }
-            
-            window.speechSynthesis.speak(ut);
+            speechTimeout = setTimeout(() => {
+                const ut = new SpeechSynthesisUtterance(textToSpeak);
+                ut.lang = 'en-US';
+                ut.rate = speechSpeed; // iPad 上的某些語音若低於 0.5 會失效
+                
+                // 優先選擇高品質本地語音
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    const bestVoice = voices.find(v => v.name.includes('Samantha')) || 
+                                     voices.find(v => v.lang.includes('en-US') && v.localService) ||
+                                     voices.find(v => v.lang.includes('en-US'));
+                    if (bestVoice) ut.voice = bestVoice;
+                }
+                
+                window.speechSynthesis.speak(ut);
+            }, 50); // 50ms 的關鍵延遲
         }
 
         // ==================== PARSER ====================
