@@ -435,15 +435,16 @@
 
         // ==================== AUDIO LOGIC ====================
         let speechSpeed = 1.0;
-        const speeds = [1.0, 0.75, 0.5]; // 調整為更能被 iPad 識別的語速範圍：正常, 慢速, 極慢速
+        const speeds = [1.0, 0.6, 0.3]; // 正常, 慢速, 極慢速 - 讓差距更明顯
         let speedIndex = 0;
         let audioUnlocked = false;
         let speechTimeout = null;
+        let audioPlayer = new Audio(); // 支援 Google TTS
 
         function toggleSpeed() {
             speedIndex = (speedIndex + 1) % speeds.length;
             speechSpeed = speeds[speedIndex];
-            const labels = ['1.0x', '0.75x', '0.5x'];
+            const labels = ['1.0x', '0.6x', '0.3x'];
             document.getElementById('free-speed-btn').textContent = labels[speedIndex];
             document.getElementById('anki-speed-btn').textContent = labels[speedIndex];
             
@@ -451,19 +452,19 @@
             const btnId = currentAppMode === 'free' ? 'free-speed-btn' : 'anki-speed-btn';
             const btn = document.getElementById(btnId);
             if (btn) {
-                btn.classList.add('bg-indigo-50');
-                setTimeout(() => btn.classList.remove('bg-indigo-50'), 200);
+                btn.classList.add('scale-110', 'bg-indigo-50');
+                setTimeout(() => btn.classList.remove('scale-110', 'bg-indigo-50'), 200);
             }
             
-            playSound(); // 切換時自動重播一次
+            playSound(); 
         }
 
-        // iPad/iOS 預熱：需要使用者首次點擊解鎖
         function unlockAudio() {
             if (audioUnlocked) return;
+            // 同時解鎖 Audio 物件與系統語音
+            audioPlayer.play().catch(() => {});
             window.speechSynthesis.cancel();
-            const ut = new SpeechSynthesisUtterance('');
-            window.speechSynthesis.speak(ut);
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
             audioUnlocked = true;
         }
 
@@ -473,26 +474,34 @@
             
             const textToSpeak = currentCardItem.en;
             
-            // 關鍵修復：iPadOS 需要先取消並延遲一下，新的語速才會生效
+            // 優先使用 Google TTS (在 iPad 上語速控制最精準且自然)
+            const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(textToSpeak)}&tl=en&client=tw-ob`;
+            
+            // 停止之前的發音
             if (speechTimeout) clearTimeout(speechTimeout);
             window.speechSynthesis.cancel();
+            audioPlayer.pause();
             
-            speechTimeout = setTimeout(() => {
-                const ut = new SpeechSynthesisUtterance(textToSpeak);
-                ut.lang = 'en-US';
-                ut.rate = speechSpeed; // iPad 上的某些語音若低於 0.5 會失效
+            audioPlayer.src = googleTtsUrl;
+            audioPlayer.playbackRate = speechSpeed; // 精準控制播放速度
+            
+            audioPlayer.play().catch(err => {
+                console.warn("Google TTS 失敗或離線，切換至系統語音備援");
                 
-                // 優先選擇高品質本地語音
-                const voices = window.speechSynthesis.getVoices();
-                if (voices.length > 0) {
-                    const bestVoice = voices.find(v => v.name.includes('Samantha')) || 
-                                     voices.find(v => v.lang.includes('en-US') && v.localService) ||
-                                     voices.find(v => v.lang.includes('en-US'));
-                    if (bestVoice) ut.voice = bestVoice;
-                }
-                
-                window.speechSynthesis.speak(ut);
-            }, 50); // 50ms 的關鍵延遲
+                speechTimeout = setTimeout(() => {
+                    const ut = new SpeechSynthesisUtterance(textToSpeak);
+                    ut.lang = 'en-US';
+                    ut.rate = speechSpeed;
+                    
+                    const voices = window.speechSynthesis.getVoices();
+                    if (voices.length > 0) {
+                        const bestVoice = voices.find(v => v.name.includes('Samantha')) || 
+                                         voices.find(v => v.lang.includes('en-US'));
+                        if (bestVoice) ut.voice = bestVoice;
+                    }
+                    window.speechSynthesis.speak(ut);
+                }, 50);
+            });
         }
 
         // ==================== PARSER ====================
