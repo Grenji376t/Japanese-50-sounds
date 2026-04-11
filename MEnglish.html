@@ -511,18 +511,32 @@
             const lines = raw.split('\n');
             const parsed = [];
             lines.forEach((line) => {
-                // 支援 Tab 或 - 作為分隔符號，或自動分割
-                let parts = line.split('\t');
-                if (parts.length < 2) parts = line.split('-');
-                if (parts.length < 2) {
-                    // 嘗試用空白分割，第一個為英文，後面為中文
-                    const spaceIndex = line.indexOf(' ');
-                    if (spaceIndex !== -1) {
-                         parts = [line.slice(0, spaceIndex), line.slice(spaceIndex+1)];
+                line = line.trim();
+                let parts = [];
+                
+                // 1. 優先嘗試標準分隔符號 (Tab, 冒號, 垂直線, 或帶空格的橫線)
+                if (line.includes('\t')) parts = line.split('\t');
+                else if (line.includes(' | ')) parts = line.split(' | ');
+                else if (line.includes(' - ')) parts = line.split(' - ');
+                else if (line.includes('：')) parts = line.split('：');
+                else if (line.includes(': ')) parts = line.split(': ');
+                else {
+                    // 2. 智慧偵測：尋找第一個中文字元 (CJK) 作為分割點，支援包含空格的英文片語
+                    const cjkMatch = line.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/);
+                    if (cjkMatch) {
+                        const index = cjkMatch.index;
+                        parts = [line.slice(0, index).trim(), line.slice(index).trim()];
+                    } else {
+                        // 3. 最後的備案：以第一個空格分割
+                        const spaceIndex = line.indexOf(' ');
+                        if (spaceIndex !== -1) {
+                            parts = [line.slice(0, spaceIndex), line.slice(spaceIndex+1)];
+                        }
                     }
                 }
-                if (parts.length >= 2) {
-                    parsed.push({ en: parts[0].trim(), zh: parts.slice(1).join(' ').trim() });
+
+                if (parts.length >= 2 && parts[0] && parts[1]) {
+                    parsed.push({ en: parts[0].trim(), zh: parts[1].trim() });
                 }
             });
             return parsed;
